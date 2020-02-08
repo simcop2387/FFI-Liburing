@@ -1,0 +1,7 @@
+use strict;
+use warnings;
+
+{
+  verbose => 1,
+  alien => 'Alien::liburing',
+}
