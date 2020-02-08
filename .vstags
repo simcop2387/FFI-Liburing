@@ -5,5 +5,5 @@
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.9~svn20110310	//
 Sys::Linux::Liburing	lib/Sys/Linux/Liburing.pm	1;"	p
-Sys::Linux::Liburing::import	lib/Sys/Linux/Liburing.pm	79;"	s
-import	lib/Sys/Linux/Liburing.pm	79;"	s
+Sys::Linux::Liburing::import	lib/Sys/Linux/Liburing.pm	99;"	s
+import	lib/Sys/Linux/Liburing.pm	99;"	s
