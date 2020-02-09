@@ -1,0 +1,4 @@
+.build/
+ignored/
+extern/liburing/
+Alien-liburing-*
