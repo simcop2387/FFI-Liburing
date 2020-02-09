@@ -13,6 +13,81 @@ use POSIX 'uname';
 use FFI::Platypus;
 use parent 'Exporter';
 
+{
+  my $ffi = FFI::Platypus->new( api => 1 );
+ 
+  $ffi->mangler(sub {
+    my $name = shift;
+    $name =~ s/^/MY_/;
+    $name;
+  });
+ 
+  $ffi->type('struct io_uring_probe' => 'io_uring_probe');
+  $ffi->type('struct io_uring_cqe' => 'io_uring_cqe');
+  $ffi->type('struct io_uring_sqe' => 'io_uring_sqe');
+  $ffi->type('struct io_uring' => 'io_uring');
+  $ffi->type('struct statx' => 'statx');
+  $ffi->type('struct mode_t' => 'mode_t');
+  $ffi->type('struct sockaddr' => 'sockaddr');
+  $ffi->type('struct __kernel_timespec' => '__kernel_timespec');
+  $ffi->type('stuct socklen_t' => 'socklen_t');
+  $ffi->type('struct msghdr' => 'msghdr');
+  $ffi->type('struct open_how' => 'open_how');
+
+  $ffi->bundle;
+ 
+  my $api_list = [
+    [io_uring_opcode_supported => ['io_uring_probe *', 'int'] => 'int'],
+    [io_uring_wait_cqe_nr => ['io_uring *', 'io_uring_cqe **', 'unsigned'] => 'int'],
+    [io_uring_peek_cqe => ['io_uring *', 'io_uring_cqe **'] => 'int'],
+    [io_uring_wait_cqe => ['io_uring *', 'io_uring_cqe **'] => 'int'],
+    [io_uring_cq_advance => ['io_uring *', 'unsigned'] => 'void'],
+    [io_uring_cqe_seen => ['io_uring *', 'io_uring_cqe *'] => 'void'],
+    [io_uring_sqe_set_data => ['io_uring_sqe *', 'void *'] => 'void'],
+    [io_uring_cqe_get_data => ['io_uring_cqe *'] => 'void*'],
+    [io_uring_sqe_set_flags => ['io_uring_sqe *', 'unsigned'] => 'void'],
+    [io_uring_prep_rw => ['int', 'io_uring_sqe *', 'int', 'const void *', 'unsigned', '__u64'] => 'void'],
+    [io_uring_prep_readv => ['io_uring_sqe *', 'int', 'const iovec *', 'unsigned', 'off_t'] => 'void'],
+    [io_uring_prep_read_fixed => ['io_uring_sqe *', 'int', 'void *', 'unsigned', 'off_t', 'int'] => 'void'],
+    [io_uring_prep_writev => ['io_uring_sqe *', 'int', 'const iovec *', 'unsigned', 'off_t'] => 'void'],
+    [io_uring_prep_write_fixed => ['io_uring_sqe *', 'int', 'const void *', 'unsigned', 'off_t', 'int'] => 'void'],
+    [io_uring_prep_recvmsg => ['io_uring_sqe *', 'int', 'msghdr *', 'unsigned'] => 'void'],
+    [io_uring_prep_sendmsg => ['io_uring_sqe *', 'int', 'const msghdr *', 'unsigned'] => 'void'],
+    [io_uring_prep_poll_add => ['io_uring_sqe *', 'int', 'short'] => 'void'],
+    [io_uring_prep_poll_remove => ['io_uring_sqe *', 'void *'] => 'void'],
+    [io_uring_prep_fsync => ['io_uring_sqe *', 'int', 'unsigned'] => 'void'],
+    [io_uring_prep_nop => ['io_uring_sqe *'] => 'void'],
+    [io_uring_prep_timeout => ['io_uring_sqe *', '__kernel_timespec *', 'unsigned', 'unsigned'] => 'void'],
+    # this u64 is ACTUALLY a pointer, kernel code needs to disguise them sometimes
+    # to prevent platform differences in padding, alignment, etc.
+    [io_uring_prep_timeout_remove => ['io_uring_sqe *', '__u64', 'unsigned'] => 'void'],
+    [io_uring_prep_accept => ['io_uring_sqe *', 'int', 'sockaddr *', 'socklen_t *', 'int'] => 'void'],
+    [io_uring_prep_cancel => ['io_uring_sqe *', 'void *', 'int'] => 'void'],
+    [io_uring_prep_link_timeout => ['io_uring_sqe *', '__kernel_timespec *', 'unsigned'] => 'void'],
+    [io_uring_prep_connect => ['io_uring_sqe *', 'int', 'sockaddr *', 'socklen_t'] => 'void'],
+    [io_uring_prep_files_update => ['io_uring_sqe *', 'int *', 'unsigned', 'int'] => 'void'],
+    [io_uring_prep_fallocate => ['io_uring_sqe *', 'int', 'int', 'off_t', 'off_t'] => 'void'],
+    [io_uring_prep_openat => ['io_uring_sqe *', 'int', 'const char *', 'int', 'mode_t'] => 'void'],
+    [io_uring_prep_close => ['io_uring_sqe *', 'int'] => 'void'],
+    [io_uring_prep_read => ['io_uring_sqe *', 'int', 'void *', 'unsigned', 'off_t'] => 'void'],
+    [io_uring_prep_write => ['io_uring_sqe *', 'int', 'void *', 'unsigned', 'off_t'] => 'void'],
+    [io_uring_prep_statx => ['io_uring_sqe *', 'int', 'const char *', 'int', 'unsigned', 'statx *'] => 'void'],
+    [io_uring_prep_fadvise => ['io_uring_sqe *', 'int', 'off_t', 'off_t', 'int'] => 'void'],
+    [io_uring_prep_madvise => ['io_uring_sqe *', 'void *', 'off_t', 'int'] => 'void'],
+    [io_uring_prep_send => ['io_uring_sqe *', 'int', 'const void *', 'size_t', 'int'] => 'void'],
+    [io_uring_prep_recv => ['io_uring_sqe *', 'int', 'void *', 'size_t', 'flags'] => 'void'],
+    [io_uring_prep_openat2 => ['io_uring_sqe *', 'int', 'const char *', 'open_how *'] => 'void'],
+    [io_uring_sq_ready => ['io_uring *'] => 'unsigned'],
+    [io_uring_sq_space_left => ['io_uring *'] => 'unsigned'],
+    [io_uring_cq_ready => ['io_uring *'] => 'unsigned'],
+  ];
+
+  for my $func (@$api_list) {
+    $ffi->attach(@$func);
+  }
+
+};
+
 our %EXPORT_TAGS;
 our @EXPORT_OK;
 my %minimum_kernel_version;
