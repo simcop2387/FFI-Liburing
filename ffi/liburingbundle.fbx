@@ -4,4 +4,5 @@ use warnings;
 {
   verbose => 1,
   alien => 'Alien::liburing',
+  source => ['ffi/*.c'],
 }
