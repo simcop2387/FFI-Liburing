@@ -22,15 +22,15 @@ use parent 'Exporter';
     $name;
   });
  
-  $ffi->type('struct io_uring_probe' => 'io_uring_probe');
-  $ffi->type('struct io_uring_cqe' => 'io_uring_cqe');
-  $ffi->type('struct io_uring_sqe' => 'io_uring_sqe');
+  $ffi->type('record(Sys::Linux::Liburing::Types::Probe)' => 'io_uring_probe');
+  $ffi->type('record(Sys::Linux::Liburing::Types::Cqe)' => 'io_uring_cqe');
+  $ffi->type('record(Sys::Linux::Liburing::Types::Sqe)' => 'io_uring_sqe');
   $ffi->type('struct io_uring' => 'io_uring');
-  $ffi->type('struct statx' => 'statx');
+  $ffi->type('record(Sys::Linux::Liburing::Types::Statx)' => 'statx');
   $ffi->type('struct mode_t' => 'mode_t');
   $ffi->type('struct sockaddr' => 'sockaddr');
   $ffi->type('struct __kernel_timespec' => '__kernel_timespec');
-  $ffi->type('stuct socklen_t' => 'socklen_t');
+  $ffi->type('struct socklen_t' => 'socklen_t');
   $ffi->type('struct msghdr' => 'msghdr');
   $ffi->type('struct open_how' => 'open_how');
 
