@@ -3,7 +3,7 @@ package
 
 use strict;
 use warnings;
-use FFI::Platypus::Record;
+use FFI::C;
 
 record_layout_1(qw(
 	sint64 tv_sec

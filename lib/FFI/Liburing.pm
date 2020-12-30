@@ -1,4 +1,4 @@
-package Sys::Linux::Liburing;
+package FFI::Liburing;
 
 # ABSTRACT: No Abstract
 
@@ -13,10 +13,7 @@ use POSIX 'uname';
 use FFI::Platypus;
 use parent 'Exporter';
 use Sys::Linux::KernelVersion;
-
-use Sys::Linux::Liburing::Types::Probe;
-use Sys::Linux::Liburing::Types::Cqe;
-use Sys::Linux::Liburing::Types::Sqe;
+use FFI::C;
 
 {
   my $ffi = FFI::Platypus->new( api => 1 );
@@ -26,10 +23,72 @@ use Sys::Linux::Liburing::Types::Sqe;
     $name =~ s/^/MY_/;
     $name;
   });
+
+  FFI::C->ffi($ffi);
+
+package FFI::Liburing::Types::StatxTime {
+  FFI::C->struct(__statx_time_t => [
+    tv_sec => 'sint64',
+    tv_nsec => 'uint32',
+    reserved => 'sint32']);
+};
+
+package FFI::Liburing::Types::Statx {
+  FFI::C->struct(__statx_t => [
+stx_mask => 'uint32',
+stx_blksize => 'uint32',
+stx_attributes => 'uint64',
+stx_nlink => 'uint32',
+stx_uid => 'uint32',
+stx_gid => 'uint32',
+stx_mode => 'uint16',
+_spare0 => 'uint16',
+stx_ino => 'uint64',
+stx_size => 'uint64',
+stx_blocks => 'uint64',
+stx_attributes_mask => 'uint64',
+stx_atime => '__statx_time_t',
+stx_btime => '__statx_time_t',
+stx_ctime => '__statx_time_t',
+stx_mtime => '__statx_time_t',
+stx_rdev_major => 'uint32',
+stx_rdev_minor => 'uint32',
+stx_dev_major => 'uint32',
+stx_dev_minor => 'uint32',
+_spare1_1 => 'uint64',
+_spare1_2 => 'uint64',
+_spare1_3 => 'uint64',
+_spare1_4 => 'uint64',
+_spare1_5 => 'uint64',
+_spare1_6 => 'uint64',
+_spare1_7 => 'uint64',
+_spare1_8 => 'uint64',
+_spare1_9 => 'uint64',
+_spare1_10 => 'uint64',
+_spare1_11 => 'uint64',
+_spare1_12 => 'uint64',
+_spare1_13 => 'uint64',
+_spare1_14 => 'uint64',
+  ])
+}
+
+use strict;
+use warnings;
+use FFI::Platypus::Record;
+
+record_layout_1(qw(
+)); 
+
+# good chance i'll split this out to another module and consume it here later
+
+1;
+
+
  
-  $ffi->type('record(Sys::Linux::Liburing::Types::Probe)' => 'io_uring_probe');
-  $ffi->type('record(Sys::Linux::Liburing::Types::Cqe)' => 'io_uring_cqe');
-  $ffi->type('record(Sys::Linux::Liburing::Types::Sqe)' => 'io_uring_sqe');
+ $ffi->type('record(Sys::Linux::Liburing::Types::ProbeOp)' => 'io_uring_probeop');
+ $ffi->type('record(Sys::Linux::Liburing::Types::Probe)' => 'io_uring_probe');
+#  $ffi->type('record(Sys::Linux::Liburing::Types::Cqe)' => 'io_uring_cqe');
+#  $ffi->type('record(Sys::Linux::Liburing::Types::Sqe)' => 'io_uring_sqe');
   $ffi->type('struct io_uring' => 'io_uring');
   $ffi->type('record(Sys::Linux::Liburing::Types::Statx)' => 'statx');
   $ffi->type('struct mode_t' => 'mode_t');
