@@ -55,7 +55,7 @@ Sys::Linux::Liburing::import	.build/SkYjgM_wI1/blib/lib/Sys/Linux/Liburing.pm	17
 Sys::Linux::Liburing::import	.build/SkYjgM_wI1/lib/Sys/Linux/Liburing.pm	176;"	s
 Sys::Linux::Liburing::import	.build/latest/blib/lib/Sys/Linux/Liburing.pm	176;"	s
 Sys::Linux::Liburing::import	.build/latest/lib/Sys/Linux/Liburing.pm	176;"	s
-Sys::Linux::Liburing::import	lib/Sys/Linux/Liburing.pm	176;"	s
+Sys::Linux::Liburing::import	lib/Sys/Linux/Liburing.pm	193;"	s
 die_if_os_is	.build/SkYjgM_wI1/inc/Devel/CheckOS.pm	128;"	s
 die_if_os_is	.build/latest/inc/Devel/CheckOS.pm	128;"	s
 die_if_os_isnt	.build/SkYjgM_wI1/inc/Devel/CheckOS.pm	118;"	s
@@ -70,7 +70,7 @@ import	.build/SkYjgM_wI1/lib/Sys/Linux/Liburing.pm	176;"	s
 import	.build/latest/blib/lib/Sys/Linux/Liburing.pm	176;"	s
 import	.build/latest/inc/Devel/AssertOS.pm	34;"	s
 import	.build/latest/lib/Sys/Linux/Liburing.pm	176;"	s
-import	lib/Sys/Linux/Liburing.pm	176;"	s
+import	lib/Sys/Linux/Liburing.pm	193;"	s
 list_family_members	.build/SkYjgM_wI1/inc/Devel/CheckOS.pm	229;"	s
 list_family_members	.build/latest/inc/Devel/CheckOS.pm	229;"	s
 list_platforms	.build/SkYjgM_wI1/inc/Devel/CheckOS.pm	169;"	s

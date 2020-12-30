@@ -12,6 +12,7 @@ use POSIX 'uname';
 
 use FFI::Platypus;
 use parent 'Exporter';
+use Sys::Linux::KernelVersion;
 
 {
   my $ffi = FFI::Platypus->new( api => 1 );
@@ -53,7 +54,7 @@ use parent 'Exporter';
     [io_uring_prep_write_fixed => ['io_uring_sqe *', 'int', 'const void *', 'unsigned', 'off_t', 'int'] => 'void'],
     [io_uring_prep_recvmsg => ['io_uring_sqe *', 'int', 'msghdr *', 'unsigned'] => 'void'],
     [io_uring_prep_sendmsg => ['io_uring_sqe *', 'int', 'const msghdr *', 'unsigned'] => 'void'],
-    [io_uring_prep_poll_add => ['io_uring_sqe *', 'int', 'short'] => 'void'],
+    [io_uring_prep_poll_add => ['io_uring_sqe *', 'int', 'unsigned'] => 'void'],
     [io_uring_prep_poll_remove => ['io_uring_sqe *', 'void *'] => 'void'],
     [io_uring_prep_fsync => ['io_uring_sqe *', 'int', 'unsigned'] => 'void'],
     [io_uring_prep_nop => ['io_uring_sqe *'] => 'void'],
@@ -77,9 +78,21 @@ use parent 'Exporter';
     [io_uring_prep_send => ['io_uring_sqe *', 'int', 'const void *', 'size_t', 'int'] => 'void'],
     [io_uring_prep_recv => ['io_uring_sqe *', 'int', 'void *', 'size_t', 'flags'] => 'void'],
     [io_uring_prep_openat2 => ['io_uring_sqe *', 'int', 'const char *', 'open_how *'] => 'void'],
+    [io_uring_prep_splice => ['io_uring_sqe *', 'int', '__int64', 'int', '__int64', 'unsigned', 'unsigned'] => 'void'],
+    [io_uring_prep_tee => ['io_uring_sqe *', 'int', 'int', 'unsigned', 'unsigned'] => 'void'],
+    [io_uring_prep_timeout_update => ['io_uring_sqe *', '__kernel_timespec *', '__u64', 'unsigned'] => 'void'],
+    [io_uring_prep_epoll_ctl => ['io_uring_sqe *', 'int', 'int', 'int', '__epoll_event *'] => 'void'],
+    [io_uring_prep_provide_buffers => ['io_uring_sqe *', 'void *', 'int', 'int', 'int', 'int'] => 'void'],
+    [io_uring_prep_remove_buffers => ['io_uring_sqe *', 'int', 'int'] => 'void'],
+    [io_uring_prep_shutdown => ['io_uring_sqe *', 'int', 'int'] => 'void'],
+    [io_uring_prep_unlinkat => ['io_uring_sqe *', 'int', 'string', 'int'] => 'void'],
+    [io_uring_prep_renameat => ['io_uring_sqe *', 'int', 'string', 'int', 'string', 'int'] => 'void'],
     [io_uring_sq_ready => ['io_uring *'] => 'unsigned'],
     [io_uring_sq_space_left => ['io_uring *'] => 'unsigned'],
+    [__io_uring_sqring_wait   => ['io_uring *'] => 'int'],
     [io_uring_cq_ready => ['io_uring *'] => 'unsigned'],
+    [io_uring_cq_eventfd_enabled => ['io_uring *'] => 'int'], # TODO This is really bool/_Bool, get it right!
+    [io_uring_cq_eventfd_toggle => ['io_uring *', 'int'] => 'int'], # TODO first 'int' is bool, see above
   ];
 
   for my $func (@$api_list) {
@@ -91,27 +104,26 @@ use parent 'Exporter';
 our %EXPORT_TAGS;
 our @EXPORT_OK;
 my %minimum_kernel_version;
-my $kernel_release;
-
-# Some small subs for doing comparisons of the kernel versions
-my $norm_kver = sub {
-  my $q = sprintf "%03d.%03d", split(/\./,$_[0]);
-  return $q;
-};
-
-my $compare_kver = sub {
-  my ($left, $right) = map {$norm_kver->($_)} @_;
-
-  return $left ge $right;
-};
 
 # This probably doesn't need to be in a begin but I fell better doing it in here for now.
 BEGIN {
   ($kernel_release) = [uname]->[2] =~ /^(\d+\.\d+)/;
 
   my %lk_symbols = (
-    # As of writing, 5.6 is unreleased and these are just queued up for it since you can test it from git
-    # 5.6 not merged yet, IORING_OP_SPLICE
+    # These look to have been created just before the 5.10 release, and didn't make the merge window.  liburing supports them for future use though
+    "lk5.11" => [qw/IORING_OP_SHUTDOWN IORING_OP_RENAMEAT	IORING_OP_UNLINKAT 
+                    io_uring_prep_shutdown io_uring_prep_unlinkat io_uring_prep_renameat/],
+    
+    # Nothing new that I can find in these two releases
+    "lk5.10" => [],
+    "lk5.9" => [],
+
+    "lk5.8" => [qw/IORING_OP_TEE io_uring_prep_tee/],
+
+    # Best information I can find shows IORING_OP_SPLICE being merged in 5.7
+    "lk5.7" => [qw/IORING_OP_PROVIDE_BUFFERS IORING_OP_REMOVE_BUFFERS IORING_OP_SPLICE
+                io_uring_prep_provide_buffers io_uring_prep_remove_buffers io_uring_prep_splice/],
+
     "lk5.6" => [qw/IORING_OP_FALLOCATE IORING_OP_OPENAT IORING_OP_OPENAT2 IORING_OP_CLOSE
                     IORING_OP_FILES_UPDATE IORING_OP_STATX IORING_OP_READ IORING_OP_WRITE 
                     IORING_OP_FADVISE IORING_OP_MADVISE IORING_OP_SEND IORING_OP_RECV 
@@ -120,8 +132,7 @@ BEGIN {
                     io_uring_prep_close io_uring_prep_files_update io_uring_prep_statx
                     io_uring_prep_read io_uring_prep_write io_uring_prep_fadvise
                     io_uring_prep_madvise io_uring_prep_send io_uring_prep_recv
-                    io_uring_prep_epoll_ctl
-                    /],
+                    io_uring_prep_epoll_ctl/],
     "lk5.5" => [qw/IORING_OP_TIMEOUT_REMOVE IORING_OP_ACCEPT IORING_OP_CONNECT 
                     IORING_OP_ASYNC_CANCEL IORING_OP_LINK_TIMEOUT
                     io_uring_prep_timeout_remove io_uring_prep_link_timeout
@@ -134,7 +145,7 @@ BEGIN {
                     IORING_OP_POLL_REMOVE 
                     io_uring_prep_nop io_uring_prep_readv io_uring_prep_writev 
                     io_uring_prep_read_fixed io_uring_prep_write_fixed io_uring_prep_fsync
-                    io_uring_prep_poll_remove io_uring_prep_poll_add/]
+                    io_uring_prep_poll_remove io_uring_prep_poll_add io_uring_opcode_supported/]
   );
   # make these all exportable as single symbols
   
@@ -142,12 +153,14 @@ BEGIN {
 
   # Do some fancy copying to make each kernel version contain the previous kernel versions
   my @all_symbols = ();
-  for my $version (qw/5.1 5.2 5.3 5.4 5.5 5.6/) {
+  for my $version (qw/5.1 5.2 5.3 5.4 5.5 5.6 5.7 5.8 5.9 5.10 5.11/) {
     my @symbols = @{$lk_symbols{"lk$version"}};
 
+    my $full_ver = "$version.0";
+
     # setup the minimum kernel version for each symbol and import argument
-    $minimum_kernel_version{":lk$version"} = $version;
-    @minimum_kernel_version{@symbols} = ($version) x @symbols;
+    $minimum_kernel_version{":lk$version"} = $full_ver;
+    @minimum_kernel_version{@symbols} = ($full_ver) x @symbols;
     
     # merge the symbols from previous kernels into this one
     @all_symbols = (@all_symbols, @symbols);
@@ -161,13 +174,17 @@ BEGIN {
   my @sublist = qw/
     io_uring_get_probe io_uring_get_probe_ring io_uring_get_sqe io_uring_peek_batch_cqe 
     io_uring_queue_exit io_uring_queue_init io_uring_queue_init_params io_uring_queue_mmap
-    io_uring_register_buffers io_uring_register_eventfd io_uring_register_files 
-    io_uring_register_files_update io_uring_register_personality io_uring_register_probe 
-    io_uring_ring_dontfork io_uring_submit io_uring_submit_and_wait io_uring_unregister_buffers 
-    io_uring_unregister_files io_uring_unregister_personality io_uring_wait_cqes io_uring_wait_cqe_timeout
-    io_uring_opcode_supported io_uring_cq_advance io_uring_cqe_seen io_uring_sqe_set_data
-    io_uring_sqe_set_flags io_uring_prep_rw io_uring_sq_ready io_uring_sq_space_left 
-    io_uring_cq_ready io_uring_wait_cqe_nr io_uring_peek_cqe io_uring_wait_cqe
+    io_uring_register_buffers io_uring_register_eventfd io_uring_register_eventfd_async
+    io_uring_register_files io_uring_register_files_update io_uring_register_personality 
+    io_uring_register_probe io_uring_ring_dontfork io_uring_submit io_uring_submit_and_wait 
+    io_uring_unregister_buffers io_uring_unregister_files io_uring_unregister_personality
+    io_uring_wait_cqes io_uring_wait_cqe_timeout io_uring_opcode_supported io_uring_cq_advance
+    io_uring_cqe_seen io_uring_sqe_set_data io_uring_sqe_set_flags io_uring_prep_rw 
+    io_uring_sq_ready io_uring_sq_space_left io_uring_cq_ready io_uring_wait_cqe_nr 
+    io_uring_peek_cqe io_uring_wait_cqe io_uring_register_restrictions io_uring_enable_rings
+    io_uring_prep_provide_buffers io_uring_prep_remove_buffers io_uring_prep_shutdown
+    io_uring_prep_unlinkat io_uring_prep_renameat io_uring_sq_ready io_uring_sq_space_left
+    __io_uring_sqring_wait io_uring_cq_ready io_uring_cq_eventfd_enabled io_uring_cq_eventfd_toggle
     /;
   $EXPORT_TAGS{"subs"} = @sublist;
   push @EXPORT_OK, @sublist;
@@ -180,7 +197,7 @@ sub import {
 
   for my $symbol (@symbols) {
     if (exists $minimum_kernel_version{$symbol}) {
-      if (!$compare_kver->($kernel_release, $minimum_kernel_version{$symbol})) {
+      unless (Sys::Linux::KernelVersion::is_at_least_kernel_version($minimum_kernel_version{$symbol})) {
         # TODO use io_uring_opcode_supported for checking things instead of just kernel vesions
         croak "Minimum kernel version for '$symbol' not met.  Needed '".$minimum_kernel_version{$symbol}."' have '$kernel_release'"
       }
