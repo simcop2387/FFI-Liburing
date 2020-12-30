@@ -26,67 +26,115 @@ use FFI::C;
 
   FFI::C->ffi($ffi);
 
-package FFI::Liburing::Types::StatxTime {
-  FFI::C->struct(__statx_time_t => [
-    tv_sec => 'sint64',
-    tv_nsec => 'uint32',
-    reserved => 'sint32']);
-};
+  package FFI::Liburing::Types::StatxTime {
+    FFI::C->struct(__statx_time_t => [
+      tv_sec => 'sint64',
+      tv_nsec => 'uint32',
+      reserved => 'sint32']);
+  };
 
-package FFI::Liburing::Types::Statx {
-  FFI::C->struct(__statx_t => [
-stx_mask => 'uint32',
-stx_blksize => 'uint32',
-stx_attributes => 'uint64',
-stx_nlink => 'uint32',
-stx_uid => 'uint32',
-stx_gid => 'uint32',
-stx_mode => 'uint16',
-_spare0 => 'uint16',
-stx_ino => 'uint64',
-stx_size => 'uint64',
-stx_blocks => 'uint64',
-stx_attributes_mask => 'uint64',
-stx_atime => '__statx_time_t',
-stx_btime => '__statx_time_t',
-stx_ctime => '__statx_time_t',
-stx_mtime => '__statx_time_t',
-stx_rdev_major => 'uint32',
-stx_rdev_minor => 'uint32',
-stx_dev_major => 'uint32',
-stx_dev_minor => 'uint32',
-_spare1_1 => 'uint64',
-_spare1_2 => 'uint64',
-_spare1_3 => 'uint64',
-_spare1_4 => 'uint64',
-_spare1_5 => 'uint64',
-_spare1_6 => 'uint64',
-_spare1_7 => 'uint64',
-_spare1_8 => 'uint64',
-_spare1_9 => 'uint64',
-_spare1_10 => 'uint64',
-_spare1_11 => 'uint64',
-_spare1_12 => 'uint64',
-_spare1_13 => 'uint64',
-_spare1_14 => 'uint64',
-  ])
-}
+  package FFI::Liburing::Types::Statx {
+    FFI::C->struct(__statx_t => [
+      stx_mask => 'uint32',
+      stx_blksize => 'uint32',
+      stx_attributes => 'uint64',
+      stx_nlink => 'uint32',
+      stx_uid => 'uint32',
+      stx_gid => 'uint32',
+      stx_mode => 'uint16',
+      _spare0 => 'uint16',
+      stx_ino => 'uint64',
+      stx_size => 'uint64',
+      stx_blocks => 'uint64',
+      stx_attributes_mask => 'uint64',
+      stx_atime => '__statx_time_t',
+      stx_btime => '__statx_time_t',
+      stx_ctime => '__statx_time_t',
+      stx_mtime => '__statx_time_t',
+      stx_rdev_major => 'uint32',
+      stx_rdev_minor => 'uint32',
+      stx_dev_major => 'uint32',
+      stx_dev_minor => 'uint32',
+      _spare1_1 => 'uint64',
+      _spare1_2 => 'uint64',
+      _spare1_3 => 'uint64',
+      _spare1_4 => 'uint64',
+      _spare1_5 => 'uint64',
+      _spare1_6 => 'uint64',
+      _spare1_7 => 'uint64',
+      _spare1_8 => 'uint64',
+      _spare1_9 => 'uint64',
+      _spare1_10 => 'uint64',
+      _spare1_11 => 'uint64',
+      _spare1_12 => 'uint64',
+      _spare1_13 => 'uint64',
+      _spare1_14 => 'uint64',
+    ]);
+  };
 
-use strict;
-use warnings;
-use FFI::Platypus::Record;
+  #package FFI::Liburing::Types::AlignedU64 {
+  #  # Abuse a union type to futz with the alignment
+  #  # Strictly speaking I'm not sure this is absolutely necessary
+  #  # but the C code for the struct defintion forces an alignment
+  #  # on this type so we should force it to be used too
+  #  FFI::C::UnionDef->new($ffi, 
+  #    name => '__aligned_u64',
+  #
+  #    )
+  #};
 
-record_layout_1(qw(
-)); 
+  package FFI::Liburing::Types::FilesUpdate {
+    FFI::C->new('__files_update_t' => [
+      offset => 'uint32',
+      resv => 'uint32',
+      fds => 'uint64', # This has a gcc alignment force attribute of 8, which looks like what we'll do here anyway.  Attempted to look at forcing it above but not sold on how to do it
+    ); 
+  };
 
-# good chance i'll split this out to another module and consume it here later
+  package FFI::Liburing::Types::SqringOffsets {
+    FFI::C->new('__sqring_offsets_t' => [
+      head => 'uint32',
+      tail => 'uint32',
+      ring_mask => 'uint32',
+      ring_entries => 'uint32',
+      flags => 'uint32',
+      dropped => 'uint32',
+      array => 'uint32',
+      resv1 => 'uint32',
+      resv2 => 'uint64',
+    ]); 
+  };
 
-1;
+  package FFI::Liburing::Types::CqringOffsets {
+    FFI::C->new('__cqring_offsets_t' => [
+      head => 'uint32',
+      tail => 'uint32',
+      ring_mask => 'uint32',
+      ring_entries => 'uint32',
+      overflow => 'uint32',
+      cqes => 'uint32',
+      resv_1 => 'uint64',
+      resv_2 => 'uint64',
+    ]);
+  };
 
+  package FFI::Liburing::Types::UringParams {
+    FFI::C->new('__uring_params_t' => [
+      sq_entries => 'uint32',
+      cq_entries => 'uint32',
+      flags => 'uint32',
+      sq_thread_cpu => 'uint32',
+      sq_thread_idle => 'uint32',
+      features => 'uint32',
+      wq_fd => 'uint32',
+      resv1 => 'uint32',
+      resv2 => 'uint32',
+      resv3 => 'uint32',
+      sq_off => '__sqring_offsets_t',
+      cq_off => '__cqring_offsets_t',
+    ]); 
+  };
 
- 
- $ffi->type('record(Sys::Linux::Liburing::Types::ProbeOp)' => 'io_uring_probeop');
- $ffi->type('record(Sys::Linux::Liburing::Types::Probe)' => 'io_uring_probe');
 #  $ffi->type('record(Sys::Linux::Liburing::Types::Cqe)' => 'io_uring_cqe');
 #  $ffi->type('record(Sys::Linux::Liburing::Types::Sqe)' => 'io_uring_sqe');
   $ffi->type('struct io_uring' => 'io_uring');
