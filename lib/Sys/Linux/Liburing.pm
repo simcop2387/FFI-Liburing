@@ -14,6 +14,10 @@ use FFI::Platypus;
 use parent 'Exporter';
 use Sys::Linux::KernelVersion;
 
+use Sys::Linux::Liburing::Types::Probe;
+use Sys::Linux::Liburing::Types::Cqe;
+use Sys::Linux::Liburing::Types::Sqe;
+
 {
   my $ffi = FFI::Platypus->new( api => 1 );
  
@@ -78,7 +82,7 @@ use Sys::Linux::KernelVersion;
     [io_uring_prep_send => ['io_uring_sqe *', 'int', 'const void *', 'size_t', 'int'] => 'void'],
     [io_uring_prep_recv => ['io_uring_sqe *', 'int', 'void *', 'size_t', 'flags'] => 'void'],
     [io_uring_prep_openat2 => ['io_uring_sqe *', 'int', 'const char *', 'open_how *'] => 'void'],
-    [io_uring_prep_splice => ['io_uring_sqe *', 'int', '__int64', 'int', '__int64', 'unsigned', 'unsigned'] => 'void'],
+    [io_uring_prep_splice => ['io_uring_sqe *', 'int', '__int64_t', 'int', '__int64_t', 'unsigned', 'unsigned'] => 'void'],
     [io_uring_prep_tee => ['io_uring_sqe *', 'int', 'int', 'unsigned', 'unsigned'] => 'void'],
     [io_uring_prep_timeout_update => ['io_uring_sqe *', '__kernel_timespec *', '__u64', 'unsigned'] => 'void'],
     [io_uring_prep_epoll_ctl => ['io_uring_sqe *', 'int', 'int', 'int', '__epoll_event *'] => 'void'],
@@ -91,8 +95,8 @@ use Sys::Linux::KernelVersion;
     [io_uring_sq_space_left => ['io_uring *'] => 'unsigned'],
     [__io_uring_sqring_wait   => ['io_uring *'] => 'int'],
     [io_uring_cq_ready => ['io_uring *'] => 'unsigned'],
-    [io_uring_cq_eventfd_enabled => ['io_uring *'] => 'int'], # TODO This is really bool/_Bool, get it right!
-    [io_uring_cq_eventfd_toggle => ['io_uring *', 'int'] => 'int'], # TODO first 'int' is bool, see above
+    [io_uring_cq_eventfd_enabled => ['io_uring *'] => 'bool'],
+    [io_uring_cq_eventfd_toggle => ['io_uring *', 'bool'] => 'int'],
   ];
 
   for my $func (@$api_list) {
@@ -107,8 +111,6 @@ my %minimum_kernel_version;
 
 # This probably doesn't need to be in a begin but I fell better doing it in here for now.
 BEGIN {
-  ($kernel_release) = [uname]->[2] =~ /^(\d+\.\d+)/;
-
   my %lk_symbols = (
     # These look to have been created just before the 5.10 release, and didn't make the merge window.  liburing supports them for future use though
     "lk5.11" => [qw/IORING_OP_SHUTDOWN IORING_OP_RENAMEAT	IORING_OP_UNLINKAT 
@@ -199,7 +201,7 @@ sub import {
     if (exists $minimum_kernel_version{$symbol}) {
       unless (Sys::Linux::KernelVersion::is_at_least_kernel_version($minimum_kernel_version{$symbol})) {
         # TODO use io_uring_opcode_supported for checking things instead of just kernel vesions
-        croak "Minimum kernel version for '$symbol' not met.  Needed '".$minimum_kernel_version{$symbol}."' have '$kernel_release'"
+        croak "Minimum kernel version for '$symbol' not met.  Needed '".$minimum_kernel_version{$symbol}."'"
       }
     }
   }
