@@ -162,11 +162,14 @@ use FFI::C;
   $ffi->type('opaque' => '__io_uring_cqe_p_t');
   $ffi->type('opaque' => '__io_uring_sqe_p_t');
   $ffi->type('opaque' => '__io_uring_userdata_p_t');
+  $ffi->type('opaque' => '__io_uring_addr_p_t'); # const void *addr for io_uring_prep_rw
+  $ffi->type('opaque' => '__io_uring_buffer_p_t'); # used for reading/writing data into/from the user process, void* since the kernel won't know or care about types.
+
+  $ffi->type('opaque' => '__msghdr_p_t'); # TODO make this a real type
+  $ffi->type('opaque' => '__kernel_timespec_p_t'); # this was a simple one, could be a record type
   #$ffi->type('struct mode_t' => 'mode_t');
-  #$ffi->type('struct sockaddr' => 'sockaddr');
-  #$ffi->type('struct __kernel_timespec' => '__kernel_timespec');
-  #$ffi->type('struct socklen_t' => 'socklen_t');
-  #$ffi->type('struct msghdr' => 'msghdr');
+  $ffi->type('opaque' => '__sockaddr_p_t');
+  $ffi->type('opaque' => '__socklen_p_t');
   #$ffi->type('struct open_how' => 'open_how');
 
   $ffi->bundle;
@@ -181,24 +184,24 @@ use FFI::C;
     [io_uring_sqe_set_data => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
     [io_uring_cqe_get_data => ['__io_uring_cqe_p_t'] => '__io_uring_userdata_p_t'],
     [io_uring_sqe_set_flags => ['__io_uring_sqe_p_t', 'uint'] => 'void'],
-    [io_uring_prep_rw => ['int', '__io_uring_sqe_p_t', 'int', 'const void *', 'uint', '__u64'] => 'void'],
-    [io_uring_prep_readv => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'],
-    [io_uring_prep_read_fixed => ['__io_uring_sqe_p_t', 'int', 'void *', 'uint', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_writev => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'],
-    [io_uring_prep_write_fixed => ['__io_uring_sqe_p_t', 'int', 'const void *', 'uint', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_recvmsg => ['__io_uring_sqe_p_t', 'int', 'msghdr *', 'uint'] => 'void'],
-    [io_uring_prep_sendmsg => ['__io_uring_sqe_p_t', 'int', 'const msghdr *', 'uint'] => 'void'],
+    [io_uring_prep_rw => ['int', '__io_uring_sqe_p_t', 'int', '__io_uring_addr_p_t', 'uint', 'uint64'] => 'void'],
+#    [io_uring_prep_readv => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'], # TODO fix this up
+    [io_uring_prep_read_fixed => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
+#    [io_uring_prep_writev => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'], # TODO fix this
+    [io_uring_prep_write_fixed => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
+    [io_uring_prep_recvmsg => ['__io_uring_sqe_p_t', 'int', '__msghdr_p_t', 'uint'] => 'void'],
+    [io_uring_prep_sendmsg => ['__io_uring_sqe_p_t', 'int', '__msghdr_p_t', 'uint'] => 'void'],
     [io_uring_prep_poll_add => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
-    [io_uring_prep_poll_remove => ['__io_uring_sqe_p_t', 'void *'] => 'void'],
+    [io_uring_prep_poll_remove => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
     [io_uring_prep_fsync => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
     [io_uring_prep_nop => ['__io_uring_sqe_p_t'] => 'void'],
-    [io_uring_prep_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec *', 'uint', 'uint'] => 'void'],
+    [io_uring_prep_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint', 'uint'] => 'void'],
     # this u64 is ACTUALLY a pointer, kernel code needs to disguise them sometimes
     # to prevent platform differences in padding, alignment, etc.
-    [io_uring_prep_timeout_remove => ['__io_uring_sqe_p_t', '__u64', 'uint'] => 'void'],
-    [io_uring_prep_accept => ['__io_uring_sqe_p_t', 'int', 'sockaddr *', 'socklen_t *', 'int'] => 'void'],
+    [io_uring_prep_timeout_remove => ['__io_uring_sqe_p_t', 'uint64', 'uint'] => 'void'],
+    [io_uring_prep_accept => ['__io_uring_sqe_p_t', 'int', '__sockaddr_p_t', '__socklen_p_t', 'int'] => 'void'],
     [io_uring_prep_cancel => ['__io_uring_sqe_p_t', 'void *', 'int'] => 'void'],
-    [io_uring_prep_link_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec *', 'uint'] => 'void'],
+    [io_uring_prep_link_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint'] => 'void'],
     [io_uring_prep_connect => ['__io_uring_sqe_p_t', 'int', 'sockaddr *', 'socklen_t'] => 'void'],
     [io_uring_prep_files_update => ['__io_uring_sqe_p_t', 'int *', 'uint', 'int'] => 'void'],
     [io_uring_prep_fallocate => ['__io_uring_sqe_p_t', 'int', 'int', 'off_t', 'off_t'] => 'void'],
