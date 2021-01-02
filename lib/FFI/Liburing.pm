@@ -14,10 +14,18 @@ use FFI::Platypus;
 use parent 'Exporter';
 use Sys::Linux::KernelVersion;
 use FFI::C;
+use File::ShareDir qw/dist_dir/;
+use Path::Tiny;
+use FFI::CheckLib qw//;
 
 {
+  my $search_path = path(dist_dir('Alien-liburing'))->child('dynamic');
+  my $ffi_lib = FFI::CheckLib::find_lib_or_die(lib => 'uring', libpath => $search_path);
+  my $ffi_suplib = FFI::CheckLib::find_lib_or_die(lib => 'uringsup', libpath => $search_path);
+
   my $ffi = FFI::Platypus->new( api => 1 );
- 
+  $ffi->lib($ffi_lib, $ffi_suplib);
+
   $ffi->mangler(sub {
     my $name = shift;
     $name =~ s/^/MY_/;
@@ -169,8 +177,10 @@ use FFI::C;
   $ffi->type('opaque' => '__kernel_timespec_p_t'); # this was a simple one, could be a record type
   #$ffi->type('struct mode_t' => 'mode_t');
   $ffi->type('opaque' => '__sockaddr_p_t');
-  $ffi->type('opaque' => '__socklen_p_t');
-  #$ffi->type('struct open_how' => 'open_how');
+  $ffi->type('uint32' => '__socklen_t');
+  $ffi->type('__socklen_t*' => '__socklen_p_t');
+  $ffi->type('opaque' => '__open_how_p_t');
+  $ffi->type('opaque' => '__epoll_event_t');
 
   $ffi->bundle;
  
@@ -200,33 +210,33 @@ use FFI::C;
     # to prevent platform differences in padding, alignment, etc.
     [io_uring_prep_timeout_remove => ['__io_uring_sqe_p_t', 'uint64', 'uint'] => 'void'],
     [io_uring_prep_accept => ['__io_uring_sqe_p_t', 'int', '__sockaddr_p_t', '__socklen_p_t', 'int'] => 'void'],
-    [io_uring_prep_cancel => ['__io_uring_sqe_p_t', 'void *', 'int'] => 'void'],
+    [io_uring_prep_cancel => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t', 'int'] => 'void'],
     [io_uring_prep_link_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint'] => 'void'],
-    [io_uring_prep_connect => ['__io_uring_sqe_p_t', 'int', 'sockaddr *', 'socklen_t'] => 'void'],
+    [io_uring_prep_connect => ['__io_uring_sqe_p_t', 'int', '__sockaddr_p_t', '__socklen_t'] => 'void'],
     [io_uring_prep_files_update => ['__io_uring_sqe_p_t', 'int *', 'uint', 'int'] => 'void'],
     [io_uring_prep_fallocate => ['__io_uring_sqe_p_t', 'int', 'int', 'off_t', 'off_t'] => 'void'],
-    [io_uring_prep_openat => ['__io_uring_sqe_p_t', 'int', 'const char *', 'int', 'mode_t'] => 'void'],
+    [io_uring_prep_openat => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'mode_t'] => 'void'],
     [io_uring_prep_close => ['__io_uring_sqe_p_t', 'int'] => 'void'],
-    [io_uring_prep_read => ['__io_uring_sqe_p_t', 'int', 'void *', 'uint', 'off_t'] => 'void'],
-    [io_uring_prep_write => ['__io_uring_sqe_p_t', 'int', 'void *', 'uint', 'off_t'] => 'void'],
-    [io_uring_prep_statx => ['__io_uring_sqe_p_t', 'int', 'const char *', 'int', 'uint', 'statx *'] => 'void'],
+    [io_uring_prep_read => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t'] => 'void'],
+    [io_uring_prep_write => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t'] => 'void'],
+    [io_uring_prep_statx => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'uint', '__statx_t'] => 'void'],
     [io_uring_prep_fadvise => ['__io_uring_sqe_p_t', 'int', 'off_t', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_madvise => ['__io_uring_sqe_p_t', 'void *', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_send => ['__io_uring_sqe_p_t', 'int', 'const void *', 'size_t', 'int'] => 'void'],
-    [io_uring_prep_recv => ['__io_uring_sqe_p_t', 'int', 'void *', 'size_t', 'flags'] => 'void'],
-    [io_uring_prep_openat2 => ['__io_uring_sqe_p_t', 'int', 'const char *', 'open_how *'] => 'void'],
-    [io_uring_prep_splice => ['__io_uring_sqe_p_t', 'int', '__int64_t', 'int', '__int64_t', 'uint', 'uint'] => 'void'],
+    [io_uring_prep_madvise => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'off_t', 'int'] => 'void'],
+    [io_uring_prep_send => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'size_t', 'int'] => 'void'],
+    [io_uring_prep_recv => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'size_t', 'int'] => 'void'],
+    [io_uring_prep_openat2 => ['__io_uring_sqe_p_t', 'int', 'string', '__open_how_p_t'] => 'void'],
+    [io_uring_prep_splice => ['__io_uring_sqe_p_t', 'int', 'sint64', 'int', 'sint64', 'uint', 'uint'] => 'void'], # TODO failed to find?
     [io_uring_prep_tee => ['__io_uring_sqe_p_t', 'int', 'int', 'uint', 'uint'] => 'void'],
-    [io_uring_prep_timeout_update => ['__io_uring_sqe_p_t', '__kernel_timespec *', '__u64', 'uint'] => 'void'],
-    [io_uring_prep_epoll_ctl => ['__io_uring_sqe_p_t', 'int', 'int', 'int', '__epoll_event *'] => 'void'],
-    [io_uring_prep_provide_buffers => ['__io_uring_sqe_p_t', 'void *', 'int', 'int', 'int', 'int'] => 'void'],
+    [io_uring_prep_timeout_update => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint64', 'uint'] => 'void'],
+    [io_uring_prep_epoll_ctl => ['__io_uring_sqe_p_t', 'int', 'int', 'int', '__epoll_event_t *'] => 'void'],
+    [io_uring_prep_provide_buffers => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'int', 'int', 'int', 'int'] => 'void'],
     [io_uring_prep_remove_buffers => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
     [io_uring_prep_shutdown => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
     [io_uring_prep_unlinkat => ['__io_uring_sqe_p_t', 'int', 'string', 'int'] => 'void'],
     [io_uring_prep_renameat => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'string', 'int'] => 'void'],
     [io_uring_sq_ready => ['__io_uring_p_t'] => 'uint'],
     [io_uring_sq_space_left => ['__io_uring_p_t'] => 'uint'],
-    [__io_uring_sqring_wait   => ['__io_uring_p_t'] => 'int'],
+#    [__io_uring_sqring_wait   => ['__io_uring_p_t'] => 'int'],
     [io_uring_cq_ready => ['__io_uring_p_t'] => 'uint'],
     [io_uring_cq_eventfd_enabled => ['__io_uring_p_t'] => 'bool'],
     [io_uring_cq_eventfd_toggle => ['__io_uring_p_t', 'bool'] => 'int'],
