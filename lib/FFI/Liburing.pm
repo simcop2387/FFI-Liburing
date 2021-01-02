@@ -164,21 +164,43 @@ use FFI::CheckLib qw//;
     ]);
   };
 
+  # TODO move this to it's own package/dist
+  $ffi->type('long long' => '__kernel_time64_t'); # TODO lookup proper type
+  package FFI::Liburing::Types::KernelTimeSpec {
+    FFI::C->struct('__kernel_timespec_t' => [
+      tv_sec => '__kernel_time64_t',
+      tv_nsec => 'long long',
+    ]);
+  };
+
+  # TODO move this too
+  $ffi->type('uint32' => 'socklen_t');
+  $ffi->type('opaque' => 'sockaddr_t');
+
+  package FFI::Liburing::Types::MsgHdr {
+    FFI::C->struct('msghdr_t' => [
+      msg_name => 'opaque', # void *, address to send to/receive from. TODO make this a custom type that can be helpered
+      msg_namelen => 'socklen_t',
+      msg_iov => 'opaque',  # struct iovec*, vector of data to send/receive into.  TODO needs helpers
+      msg_control => 'opaque', # void *, ancillary data (eg BSD filedesc passing). TODO wat?
+      msg_controllen => 'size_t', # size of the above buffer, should be socketlen_t but the definition of the kernel is incompatible with this
+      msg_flags => 'int', # flags on received message
+    ]);
+  };
+
   $ffi->type('opaque' => '__io_uring_p_t');
   $ffi->type('opaque' => '__io_uring_probe_pp_t');
   $ffi->type('opaque' => '__io_uring_cqe_pp_t');
   $ffi->type('opaque' => '__io_uring_cqe_p_t');
   $ffi->type('opaque' => '__io_uring_sqe_p_t');
+
+  # TODO these three should be custom_types and do the right setup.
+  # They'll need helpers with the rest of it too
   $ffi->type('opaque' => '__io_uring_userdata_p_t');
   $ffi->type('opaque' => '__io_uring_addr_p_t'); # const void *addr for io_uring_prep_rw
   $ffi->type('opaque' => '__io_uring_buffer_p_t'); # used for reading/writing data into/from the user process, void* since the kernel won't know or care about types.
 
-  $ffi->type('opaque' => '__msghdr_p_t'); # TODO make this a real type
-  $ffi->type('opaque' => '__kernel_timespec_p_t'); # this was a simple one, could be a record type
   #$ffi->type('struct mode_t' => 'mode_t');
-  $ffi->type('opaque' => '__sockaddr_p_t');
-  $ffi->type('uint32' => '__socklen_t');
-  $ffi->type('__socklen_t*' => '__socklen_p_t');
   $ffi->type('opaque' => '__open_how_p_t');
   $ffi->type('opaque' => '__epoll_event_t');
 
@@ -199,20 +221,20 @@ use FFI::CheckLib qw//;
     [io_uring_prep_read_fixed => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
 #    [io_uring_prep_writev => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'], # TODO fix this
     [io_uring_prep_write_fixed => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_recvmsg => ['__io_uring_sqe_p_t', 'int', '__msghdr_p_t', 'uint'] => 'void'],
-    [io_uring_prep_sendmsg => ['__io_uring_sqe_p_t', 'int', '__msghdr_p_t', 'uint'] => 'void'],
+    [io_uring_prep_recvmsg => ['__io_uring_sqe_p_t', 'int', 'msghdr_t', 'uint'] => 'void'],
+    [io_uring_prep_sendmsg => ['__io_uring_sqe_p_t', 'int', 'msghdr_t', 'uint'] => 'void'],
     [io_uring_prep_poll_add => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
     [io_uring_prep_poll_remove => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
     [io_uring_prep_fsync => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
     [io_uring_prep_nop => ['__io_uring_sqe_p_t'] => 'void'],
-    [io_uring_prep_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint', 'uint'] => 'void'],
+    [io_uring_prep_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint', 'uint'] => 'void'],
     # this u64 is ACTUALLY a pointer, kernel code needs to disguise them sometimes
     # to prevent platform differences in padding, alignment, etc.
     [io_uring_prep_timeout_remove => ['__io_uring_sqe_p_t', 'uint64', 'uint'] => 'void'],
-    [io_uring_prep_accept => ['__io_uring_sqe_p_t', 'int', '__sockaddr_p_t', '__socklen_p_t', 'int'] => 'void'],
+    [io_uring_prep_accept => ['__io_uring_sqe_p_t', 'int', 'sockaddr_t', 'socklen_t*', 'int'] => 'void'],
     [io_uring_prep_cancel => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t', 'int'] => 'void'],
-    [io_uring_prep_link_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint'] => 'void'],
-    [io_uring_prep_connect => ['__io_uring_sqe_p_t', 'int', '__sockaddr_p_t', '__socklen_t'] => 'void'],
+    [io_uring_prep_link_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint'] => 'void'],
+    [io_uring_prep_connect => ['__io_uring_sqe_p_t', 'int', 'sockaddr_t', 'socklen_t'] => 'void'],
     [io_uring_prep_files_update => ['__io_uring_sqe_p_t', 'int *', 'uint', 'int'] => 'void'],
     [io_uring_prep_fallocate => ['__io_uring_sqe_p_t', 'int', 'int', 'off_t', 'off_t'] => 'void'],
     [io_uring_prep_openat => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'mode_t'] => 'void'],
@@ -227,7 +249,7 @@ use FFI::CheckLib qw//;
     [io_uring_prep_openat2 => ['__io_uring_sqe_p_t', 'int', 'string', '__open_how_p_t'] => 'void'],
     [io_uring_prep_splice => ['__io_uring_sqe_p_t', 'int', 'sint64', 'int', 'sint64', 'uint', 'uint'] => 'void'], # TODO failed to find?
     [io_uring_prep_tee => ['__io_uring_sqe_p_t', 'int', 'int', 'uint', 'uint'] => 'void'],
-    [io_uring_prep_timeout_update => ['__io_uring_sqe_p_t', '__kernel_timespec_p_t', 'uint64', 'uint'] => 'void'],
+    [io_uring_prep_timeout_update => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint64', 'uint'] => 'void'],
     [io_uring_prep_epoll_ctl => ['__io_uring_sqe_p_t', 'int', 'int', 'int', '__epoll_event_t *'] => 'void'],
     [io_uring_prep_provide_buffers => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'int', 'int', 'int', 'int'] => 'void'],
     [io_uring_prep_remove_buffers => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
