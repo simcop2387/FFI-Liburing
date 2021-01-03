@@ -20,7 +20,18 @@ use FFI::CheckLib qw//;
 
 {
   my $search_path = path(dist_dir('Alien-liburing'))->child('dynamic');
-  my $ffi_lib = FFI::CheckLib::find_lib_or_die(lib => 'uring', libpath => $search_path);
+  my $ffi_lib = FFI::CheckLib::find_lib_or_die(lib => 'uring', libpath => $search_path, verify => sub {
+    my($name, $libpath) = @_;
+ 
+    my $ffi = FFI::Platypus->new;
+    $ffi->lib($libpath);
+
+    my $symbol = $ffi->find_symbol("io_uring_get_probe");
+#    print "Found with address $symbol\n";
+
+    return 1 if $symbol;
+    return 0;
+  });
   my $ffi_suplib = FFI::CheckLib::find_lib_or_die(lib => 'uringsup', libpath => $search_path);
 
   my $ffi = FFI::Platypus->new( api => 1 );
@@ -28,11 +39,21 @@ use FFI::CheckLib qw//;
 
   $ffi->mangler(sub {
     my $name = shift;
-    $name =~ s/^/MY_/;
+    #$name =~ s/^/MY_/;
     $name;
   });
 
   FFI::C->ffi($ffi);
+
+  $ffi->load_custom_type('::Enum' => '__io_uring_op_t' => 
+    {rev => 'int', package => 'FFI::Liburing', prefix => 'IORING_OP_'} => qw/
+      NOP READV WRITEV FSYNC READ_FIXED WRITE_FIXED POLL_ADD POLL_REMOVE 
+      SYNC_FILE_RANGE SENDMSG RECVMSG TIMEOUT TIMEOUT_REMOVE ACCEPT ASYNC_CANCEL
+      LINK_TIMEOUT CONNECT FALLOCATE OPENAT CLOSE FILES_UPDATE STATX READ 
+      WRITE FADVISE MADVISE SEND RECV OPENAT2 EPOLL_CTL SPLICE 
+      PROVIDE_BUFFERS REMOVE_BUFFERS TEE SHUTDOWN RENAMEAT UNLINKAT/,
+      # LAST must ALWAYS come last, never update the list and put anything after it
+       "LAST");
 
   package FFI::Liburing::Types::StatxTime {
     FFI::C->struct(__statx_time_t => [
@@ -143,27 +164,6 @@ use FFI::CheckLib qw//;
     ]);
   };
 
-  package FFI::Liburing::Types::ProbeOp {
-    FFI::C->struct('__probeop_t' => [
-      op => 'uint8',
-      resv => 'uint8',
-      flags => 'uint16',
-      resv2 => 'uint32'
-    ]);
-  };
-
-  package FFI::Liburing::Types::Probe {
-    FFI::C->struct('__probe_t' => [
-      last_op => 'uint8',
-      ops_len => 'uint8',
-      resv => 'uint16',
-      resv2_1 => 'uint32',
-      resv2_2 => 'uint32',
-      resv2_3 => 'uint32',
-    	ops => '__probeop_t',  # TODO this is broken, needs to be a pointer?
-    ]);
-  };
-
   # TODO move this to it's own package/dist
   $ffi->type('long long' => '__kernel_time64_t'); # TODO lookup proper type
   package FFI::Liburing::Types::KernelTimeSpec {
@@ -188,32 +188,25 @@ use FFI::CheckLib qw//;
     ]);
   };
 
-  package FFI::Liburing::Types::IOUringProbeOp {
-    FFI::C->struct('__io_uring_probe_op_t' => [
-      op => 'uint8',
-      resv => 'uint8',
-      flags => 'uint16',
-      resv2 => 'uint32',
-    ]);
-  };
-
-  package FFI::Liburing::Types::IOUringProbeOpArray {
-    FFI::C->array('__io_uring_prope_op_array_t' => ['__io_uring_probe_op_t']);
-  };
-
-  package FFI::Liburing::Types::IOUringProbe {
-    FFI::C->struct('__io_uring_probe_t' => [
-      last_op => 'uint8', # Last one we know we support
-      ops_len => 'uint8', # how many are we checking
-      resv => 'uint16',
-      resv2 => 'uint32',
-      resv3 => 'uint32',
-      'ops' => '__io_uring_prope_op_array_t'
-    ]);
-  };
+#  package FFI::Liburing::Types::IOUringProbe {
+#    FFI::C->struct('__io_uring_probe_t' => [
+#      last_op => 'uint8', # Last one we know we support
+#      ops_len => 'uint8', # how many are we checking
+#      resv => 'uint16',
+#      resv2 => 'uint32',
+#      resv3 => 'uint32',
+#      resv4 => 'uint32',
+#      '___ops' => 'uint64', # never actually read from this
+#    ]);
+#
+#    sub get_ops {
+#      my $self = shift;
+#      return map {FFI::Liburing::Types::IOUringProbeOp->new(_from_int => $_)} $self->ops;
+#    }
+#  };
 
   $ffi->type('opaque' => '__io_uring_t');
-  $ffi->type('opaque' => '__io_uring_probe_pp_t');
+  $ffi->type('opaque' => '__io_uring_probe_t');
   $ffi->type('opaque' => '__io_uring_cqe_pp_t');
   $ffi->type('opaque' => '__io_uring_cqe_p_t');
   $ffi->type('opaque' => '__io_uring_sqe_p_t');
@@ -228,64 +221,68 @@ use FFI::CheckLib qw//;
   $ffi->type('opaque' => '__open_how_p_t');
   $ffi->type('opaque' => '__epoll_event_t');
 
+  $ffi->type('opaque' => '__iovec_t');
+
   $ffi->bundle;
  
   my $api_list = [
-    [io_uring_opcode_supported => ['__io_uring_probe_pp_t', 'int'] => 'int'],
-    [io_uring_wait_cqe_nr => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint'] => 'int'],
-    [io_uring_peek_cqe => ['__io_uring_t', '__io_uring_cqe_pp_t'] => 'int'],
-    [io_uring_wait_cqe => ['__io_uring_t', '__io_uring_cqe_pp_t'] => 'int'],
-    [io_uring_cq_advance => ['__io_uring_t', 'uint'] => 'void'],
-    [io_uring_cqe_seen => ['__io_uring_t', '__io_uring_cqe_p_t'] => 'void'],
-    [io_uring_sqe_set_data => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
-    [io_uring_cqe_get_data => ['__io_uring_cqe_p_t'] => '__io_uring_userdata_p_t'],
-    [io_uring_sqe_set_flags => ['__io_uring_sqe_p_t', 'uint'] => 'void'],
-    [io_uring_prep_rw => ['int', '__io_uring_sqe_p_t', 'int', '__io_uring_addr_p_t', 'uint', 'uint64'] => 'void'],
-#    [io_uring_prep_readv => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'], # TODO fix this up
-    [io_uring_prep_read_fixed => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
-#    [io_uring_prep_writev => ['__io_uring_sqe_p_t', 'int', 'const iovec *', 'uint', 'off_t'] => 'void'], # TODO fix this
-    [io_uring_prep_write_fixed => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_recvmsg => ['__io_uring_sqe_p_t', 'int', 'msghdr_t', 'uint'] => 'void'],
-    [io_uring_prep_sendmsg => ['__io_uring_sqe_p_t', 'int', 'msghdr_t', 'uint'] => 'void'],
-    [io_uring_prep_poll_add => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
-    [io_uring_prep_poll_remove => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
-    [io_uring_prep_fsync => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
-    [io_uring_prep_nop => ['__io_uring_sqe_p_t'] => 'void'],
-    [io_uring_prep_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint', 'uint'] => 'void'],
+    [io_uring_get_probe => ['__io_uring_t'] => '__io_uring_probe_t'],
+    [io_uring_get_probe_ring => [] => '__io_uring_probe_t'],
+    [[MY_io_uring_opcode_supported => 'io_uring_opcode_supported'] => ['__io_uring_probe_t', 'int'] => 'int'],
+    [[MY_io_uring_wait_cqe_nr => 'MY_io_uring_wait_cqe_nr'] => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint'] => 'int'],
+    [[MY_io_uring_peek_cqe => 'io_uring_peek_cqe'] => ['__io_uring_t', '__io_uring_cqe_pp_t'] => 'int'],
+    [[MY_io_uring_wait_cqe => 'io_uring_wait_cqe'] => ['__io_uring_t', '__io_uring_cqe_pp_t'] => 'int'],
+    [[MY_io_uring_cq_advance => 'io_uring_cq_advance'] => ['__io_uring_t', 'uint'] => 'void'],
+    [[MY_io_uring_cqe_seen => 'io_uring_cqe_seen'] => ['__io_uring_t', '__io_uring_cqe_p_t'] => 'void'],
+    [[MY_io_uring_sqe_set_data => 'io_uring_sqe_set_data'] => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
+    [[MY_io_uring_cqe_get_data => 'io_uring_cqe_get_data'] => ['__io_uring_cqe_p_t'] => '__io_uring_userdata_p_t'],
+    [[MY_io_uring_sqe_set_flags => 'io_uring_sqe_set_flags'] => ['__io_uring_sqe_p_t', 'uint'] => 'void'],
+    [[MY_io_uring_prep_rw => 'io_uring_prep_rw'] => ['int', '__io_uring_sqe_p_t', 'int', '__io_uring_addr_p_t', 'uint', 'uint64'] => 'void'],
+    [[MY_io_uring_prep_readv => 'io_uring_prep_readv'] => ['__io_uring_sqe_p_t', 'int', '__iovec_t', 'uint', 'off_t'] => 'void'], # TODO fix this up
+    [[MY_io_uring_prep_read_fixed => 'io_uring_prep_read_fixed'] => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_writev => 'io_uring_prep_writev'] => ['__io_uring_sqe_p_t', 'int', '__iovec_t', 'uint', 'off_t'] => 'void'], # TODO fix this
+    [[MY_io_uring_prep_write_fixed => 'io_uring_prep_write_fixed'] => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_recvmsg => 'io_uring_prep_recvmsg'] => ['__io_uring_sqe_p_t', 'int', 'msghdr_t', 'uint'] => 'void'],
+    [[MY_io_uring_prep_sendmsg => 'io_uring_prep_sendmsg'] => ['__io_uring_sqe_p_t', 'int', 'msghdr_t', 'uint'] => 'void'],
+    [[MY_io_uring_prep_poll_add => 'io_uring_prep_poll_add'] => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
+    [[MY_io_uring_prep_poll_remove => 'io_uring_prep_poll_remove'] => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t'] => 'void'],
+    [[MY_io_uring_prep_fsync => 'io_uring_prep_fsync'] => ['__io_uring_sqe_p_t', 'int', 'uint'] => 'void'],
+    [[MY_io_uring_prep_nop => 'io_uring_prep_nop'] => ['__io_uring_sqe_p_t'] => 'void'],
+    [[MY_io_uring_prep_timeout => 'io_uring_prep_timeout'] => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint', 'uint'] => 'void'],
     # this u64 is ACTUALLY a pointer, kernel code needs to disguise them sometimes
     # to prevent platform differences in padding, alignment, etc.
-    [io_uring_prep_timeout_remove => ['__io_uring_sqe_p_t', 'uint64', 'uint'] => 'void'],
-    [io_uring_prep_accept => ['__io_uring_sqe_p_t', 'int', 'sockaddr_t', 'socklen_t*', 'int'] => 'void'],
-    [io_uring_prep_cancel => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t', 'int'] => 'void'],
-    [io_uring_prep_link_timeout => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint'] => 'void'],
-    [io_uring_prep_connect => ['__io_uring_sqe_p_t', 'int', 'sockaddr_t', 'socklen_t'] => 'void'],
-    [io_uring_prep_files_update => ['__io_uring_sqe_p_t', 'int *', 'uint', 'int'] => 'void'],
-    [io_uring_prep_fallocate => ['__io_uring_sqe_p_t', 'int', 'int', 'off_t', 'off_t'] => 'void'],
-    [io_uring_prep_openat => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'mode_t'] => 'void'],
-    [io_uring_prep_close => ['__io_uring_sqe_p_t', 'int'] => 'void'],
-    [io_uring_prep_read => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t'] => 'void'],
-    [io_uring_prep_write => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t'] => 'void'],
-    [io_uring_prep_statx => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'uint', '__statx_t'] => 'void'],
-    [io_uring_prep_fadvise => ['__io_uring_sqe_p_t', 'int', 'off_t', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_madvise => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'off_t', 'int'] => 'void'],
-    [io_uring_prep_send => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'size_t', 'int'] => 'void'],
-    [io_uring_prep_recv => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'size_t', 'int'] => 'void'],
-    [io_uring_prep_openat2 => ['__io_uring_sqe_p_t', 'int', 'string', '__open_how_p_t'] => 'void'],
-    [io_uring_prep_splice => ['__io_uring_sqe_p_t', 'int', 'sint64', 'int', 'sint64', 'uint', 'uint'] => 'void'], # TODO failed to find?
-    [io_uring_prep_tee => ['__io_uring_sqe_p_t', 'int', 'int', 'uint', 'uint'] => 'void'],
-    [io_uring_prep_timeout_update => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint64', 'uint'] => 'void'],
-    [io_uring_prep_epoll_ctl => ['__io_uring_sqe_p_t', 'int', 'int', 'int', '__epoll_event_t *'] => 'void'],
-    [io_uring_prep_provide_buffers => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'int', 'int', 'int', 'int'] => 'void'],
-    [io_uring_prep_remove_buffers => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
-    [io_uring_prep_shutdown => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
-    [io_uring_prep_unlinkat => ['__io_uring_sqe_p_t', 'int', 'string', 'int'] => 'void'],
-    [io_uring_prep_renameat => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'string', 'int'] => 'void'],
-    [io_uring_sq_ready => ['__io_uring_t'] => 'uint'],
-    [io_uring_sq_space_left => ['__io_uring_t'] => 'uint'],
+    [[MY_io_uring_prep_timeout_remove => 'io_uring_prep_timeout_remove'] => ['__io_uring_sqe_p_t', 'uint64', 'uint'] => 'void'],
+    [[MY_io_uring_prep_accept => 'io_uring_prep_accept'] => ['__io_uring_sqe_p_t', 'int', 'sockaddr_t', 'socklen_t*', 'int'] => 'void'],
+    [[MY_io_uring_prep_cancel => 'io_uring_prep_cancel'] => ['__io_uring_sqe_p_t', '__io_uring_userdata_p_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_link_timeout => 'io_uring_prep_link_timeout'] => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint'] => 'void'],
+    [[MY_io_uring_prep_connect => 'io_uring_prep_connect'] => ['__io_uring_sqe_p_t', 'int', 'sockaddr_t', 'socklen_t'] => 'void'],
+    [[MY_io_uring_prep_files_update => 'io_uring_prep_files_update'] => ['__io_uring_sqe_p_t', 'int *', 'uint', 'int'] => 'void'],
+    [[MY_io_uring_prep_fallocate => 'io_uring_prep_fallocate'] => ['__io_uring_sqe_p_t', 'int', 'int', 'off_t', 'off_t'] => 'void'],
+    [[MY_io_uring_prep_openat => 'io_uring_prep_openat'] => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'mode_t'] => 'void'],
+    [[MY_io_uring_prep_close => 'io_uring_prep_close'] => ['__io_uring_sqe_p_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_read => 'io_uring_prep_read'] => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t'] => 'void'],
+    [[MY_io_uring_prep_write => 'io_uring_prep_write'] => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'uint', 'off_t'] => 'void'],
+    [[MY_io_uring_prep_statx => 'io_uring_prep_statx'] => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'uint', '__statx_t'] => 'void'],
+    [[MY_io_uring_prep_fadvise => 'io_uring_prep_fadvise'] => ['__io_uring_sqe_p_t', 'int', 'off_t', 'off_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_madvise => 'io_uring_prep_madvise'] => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'off_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_send => 'io_uring_prep_send'] => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'size_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_recv => 'io_uring_prep_recv'] => ['__io_uring_sqe_p_t', 'int', '__io_uring_buffer_p_t', 'size_t', 'int'] => 'void'],
+    [[MY_io_uring_prep_openat2 => 'io_uring_prep_openat2'] => ['__io_uring_sqe_p_t', 'int', 'string', '__open_how_p_t'] => 'void'],
+    [[MY_io_uring_prep_splice => 'io_uring_prep_splice'] => ['__io_uring_sqe_p_t', 'int', 'sint64', 'int', 'sint64', 'uint', 'uint'] => 'void'], # TODO failed to find?
+    [[MY_io_uring_prep_tee => 'io_uring_prep_tee'] => ['__io_uring_sqe_p_t', 'int', 'int', 'uint', 'uint'] => 'void'],
+    [[MY_io_uring_prep_timeout_update => 'io_uring_prep_timeout_update'] => ['__io_uring_sqe_p_t', '__kernel_timespec_t', 'uint64', 'uint'] => 'void'],
+    [[MY_io_uring_prep_epoll_ctl => 'io_uring_prep_epoll_ctl'] => ['__io_uring_sqe_p_t', 'int', 'int', 'int', '__epoll_event_t *'] => 'void'],
+    [[MY_io_uring_prep_provide_buffers => 'io_uring_prep_provide_buffers'] => ['__io_uring_sqe_p_t', '__io_uring_addr_p_t', 'int', 'int', 'int', 'int'] => 'void'],
+    [[MY_io_uring_prep_remove_buffers => 'io_uring_prep_remove_buffers'] => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
+    [[MY_io_uring_prep_shutdown => 'io_uring_prep_shutdown'] => ['__io_uring_sqe_p_t', 'int', 'int'] => 'void'],
+    [[MY_io_uring_prep_unlinkat => 'io_uring_prep_unlinkat'] => ['__io_uring_sqe_p_t', 'int', 'string', 'int'] => 'void'],
+    [[MY_io_uring_prep_renameat => 'io_uring_prep_renameat'] => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'string', 'int'] => 'void'],
+    [[MY_io_uring_sq_ready => 'io_uring_sq_ready'] => ['__io_uring_t'] => 'uint'],
+    [[MY_io_uring_sq_space_left => 'io_uring_sq_space_left'] => ['__io_uring_t'] => 'uint'],
 #    [__io_uring_sqring_wait   => ['__io_uring_t'] => 'int'],
-    [io_uring_cq_ready => ['__io_uring_t'] => 'uint'],
-    [io_uring_cq_eventfd_enabled => ['__io_uring_t'] => 'bool'],
-    [io_uring_cq_eventfd_toggle => ['__io_uring_t', 'bool'] => 'int'],
+    [[MY_io_uring_cq_ready => 'io_uring_cq_ready'] => ['__io_uring_t'] => 'uint'],
+    [[MY_io_uring_cq_eventfd_enabled => 'io_uring_cq_eventfd_enabled'] => ['__io_uring_t'] => 'bool'],
+    [[MY_io_uring_cq_eventfd_toggle => 'io_uring_cq_eventfd_toggle'] => ['__io_uring_t', 'bool'] => 'int'],
   ];
 
   for my $func (@$api_list) {
@@ -333,7 +330,7 @@ BEGIN {
     "lk5.2" => [qw/IORING_OP_SYNC_FILE_RANGE/], # TODO add sub for this
     "lk5.1" => [qw/IORING_OP_NOP IORING_OP_READV IORING_OP_WRITEV IORING_OP_READ_FIXED 
                     IORING_OP_WRITE_FIXED IORING_OP_FSYNC IORING_OP_POLL_ADD 
-                    IORING_OP_POLL_REMOVE 
+                    IORING_OP_POLL_REMOVE IORING_OP_LAST
                     io_uring_prep_nop io_uring_prep_readv io_uring_prep_writev 
                     io_uring_prep_read_fixed io_uring_prep_write_fixed io_uring_prep_fsync
                     io_uring_prep_poll_remove io_uring_prep_poll_add io_uring_opcode_supported/]

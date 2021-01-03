@@ -2,15 +2,15 @@ use strict;
 use warnings;
 
 use Test::More;
+use Data::Dumper;
 
-use FFI::Liburing qw//;
+use FFI::Liburing qw/io_uring_get_probe io_uring_opcode_supported IORING_OP_NOP IORING_OP_READV IORING_OP_WRITEV/;
 
-my $testop = FFI::Liburing::Types::ProbeOp->new(
-  op => 0, # IOURING_OP_NOP
-  last_op => 1, # IOURING_OP_READV, we should be pulling in IOURING_OP_LAST but I'm not exporting it right now
-  flags => 0, # no flags
-);
+my $probe = io_uring_get_probe();
 
-ok($testop, "Test operation created");
+# Check if there's a minimum set of operations supported
+ok(io_uring_opcode_supported($probe, IORING_OP_NOP), "NOP supported");
+ok(io_uring_opcode_supported($probe, IORING_OP_READV), "READV supported");
+ok(io_uring_opcode_supported($probe, IORING_OP_WRITEV), "WRITEV supported");
 
 done_testing;
