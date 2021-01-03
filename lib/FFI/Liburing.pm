@@ -383,12 +383,24 @@ sub import {
 
   my @symbols = map {/^:(.*)/ ? @{$EXPORT_TAGS{$1}} : $_} @keys;
 
+  my $probe;
+
+  my sub _probe {
+    return $probe if $probe;
+    $probe = io_uring_get_probe();
+  }
+
   for my $symbol (@symbols) {
     if (exists $minimum_kernel_version{$symbol}) {
       unless (Sys::Linux::KernelVersion::is_at_least_kernel_version($minimum_kernel_version{$symbol})) {
         # TODO use io_uring_opcode_supported for checking things instead of just kernel vesions
         croak "Minimum kernel version for '$symbol' not met.  Needed '".$minimum_kernel_version{$symbol}."'"
       }
+    }
+
+    if ($symbol eq uc($symbol) && $symbol =~ /IORING_OP_/) {
+      my $supported = io_uring_opcode_supported(_probe(), FFI::Liburing->$symbol());
+      croak "Opcode $symbol not supported by this kernel" unless $supported;
     }
   }
 

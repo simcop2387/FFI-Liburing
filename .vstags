@@ -917,7 +917,6 @@ FFI::Liburing	.build/rxqzPsle0q/lib/FFI/Liburing.pm	1;"	p
 FFI::Liburing	FFI-Liburing-0.001/blib/lib/FFI/Liburing.pm	1;"	p
 FFI::Liburing	FFI-Liburing-0.001/lib/FFI/Liburing.pm	1;"	p
 FFI::Liburing	lib/FFI/Liburing.pm	1;"	p
-FFI::Liburing::Ops	lib/FFI/Liburing/Ops.pm	1;"	p
 FFI::Liburing::Types::CqringOffsets	.build/1hvDJaIjh5/blib/lib/FFI/Liburing.pm	137;"	p
 FFI::Liburing::Types::CqringOffsets	.build/1hvDJaIjh5/lib/FFI/Liburing.pm	137;"	p
 FFI::Liburing::Types::CqringOffsets	.build/3GvWFf8kg0/blib/lib/FFI/Liburing.pm	116;"	p
