@@ -26,10 +26,13 @@ use FFI::CheckLib qw//;
     my $ffi = FFI::Platypus->new;
     $ffi->lib($libpath);
 
-    my $symbol = $ffi->find_symbol("io_uring_get_probe");
-#    print "Found with address $symbol\n";
+#    print STDERR "Testing for $libpath\n";
 
-    return 1 if $symbol;
+    my $probe = $ffi->find_symbol("io_uring_get_probe");
+    my $restrict = 1; # $ffi->find_symbol("io_uring_register_restrictions");
+#    print STDERR "Found with address $probe - $restrict\n";
+
+    return 1 if $probe && $restrict;
     return 0;
   });
   my $ffi_suplib = FFI::CheckLib::find_lib_or_die(lib => 'uringsup', libpath => $search_path);
@@ -230,6 +233,7 @@ use FFI::CheckLib qw//;
   $ffi->type('opaque' => '__io_uring_userdata_p_t');
   $ffi->type('opaque' => '__io_uring_addr_p_t'); # const void *addr for io_uring_prep_rw
   $ffi->type('opaque' => '__io_uring_buffer_p_t'); # used for reading/writing data into/from the user process, void* since the kernel won't know or care about types.
+  $ffi->type('opaque' => '__io_uring_restriction_t');
   $ffi->type('opaque' => '__sigset_t');
 
   $ffi->type('opaque' => '__open_how_p_t');
@@ -249,7 +253,28 @@ use FFI::CheckLib qw//;
     [io_uring_peek_batch_cqe => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint'] => 'uint'],
     [io_uring_wait_cqes => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint', '__kernel_timespec_t', '__sigset_t'] => 'int'],
     [io_uring_wait_cqe_timeout => ['__io_uring_t', '__io_uring_cqe_pp_t', '__kernel_timespec_t'] => 'int'],
+    [io_uring_submit => ['__io_uring_t'] => 'int'],
+    [io_uring_submit_and_wait => ['__io_uring_t', 'uint'] => 'int'],
+    [io_uring_get_sqe => ['__io_uring_t'] => '__io_uring_sqe_p_t'],
+    [io_uring_register_buffers => ['__io_uring_t', '__iovec_t', 'uint'] => 'int'],
+    [io_uring_unregister_buffers => ['__io_uring_t'] => 'int'],
+    [io_uring_register_files => ['__io_uring_t', 'int*', 'uint'] => 'int'], # These are really arrays
+    [io_uring_register_files_update => ['__io_uring_t', 'uint', 'int*', 'uint'] => 'int'], # These are really arrays
+    [io_uring_unregister_files => ['__io_uring_t'] => 'int'],
+    [io_uring_register_eventfd => ['__io_uring_t', 'int'] => 'int'],
+    [io_uring_register_eventfd_async => ['__io_uring_t', 'int'] => 'int'],
+    [io_uring_unregister_eventfd => ['__io_uring_t'] => 'int'],
+    [io_uring_register_probe => ['__io_uring_t', '__io_uring_probe_t', 'uint'] => 'int'],
+    [io_uring_register_personality => ['__io_uring_t'] => 'int'],
+    [io_uring_unregister_personality => ['__io_uring_t', 'int'] => 'int'],
+# TODO figure out why this isn't being found in the library, objdump shows it fine    
+#    [io_uring_register_restrictions => ['__io_uring_t', '__io_uring_restriction_t', 'uint'] => 'int'],
+#    [io_uring_enable_rings => ['__io_uring_t'] => 'int'],
+    [__io_uring_sqring_wait   => ['__io_uring_t'] => 'int'],
 
+    # These are all from the supplimentary library and have the MY_ prefix to prevent C compilation issues with the wrapper
+    # They're all defined in a header file as static inline functions which works fine for C but not for us in perl
+    # hence the extra library that just wraps them all
     [[MY_io_uring_opcode_supported => 'io_uring_opcode_supported'] => ['__io_uring_probe_t', 'int'] => 'int'],
     [[MY_io_uring_wait_cqe_nr => 'MY_io_uring_wait_cqe_nr'] => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint'] => 'int'],
     [[MY_io_uring_peek_cqe => 'io_uring_peek_cqe'] => ['__io_uring_t', '__io_uring_cqe_pp_t'] => 'int'],
@@ -301,7 +326,6 @@ use FFI::CheckLib qw//;
     [[MY_io_uring_prep_renameat => 'io_uring_prep_renameat'] => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'string', 'int'] => 'void'],
     [[MY_io_uring_sq_ready => 'io_uring_sq_ready'] => ['__io_uring_t'] => 'uint'],
     [[MY_io_uring_sq_space_left => 'io_uring_sq_space_left'] => ['__io_uring_t'] => 'uint'],
-    [__io_uring_sqring_wait   => ['__io_uring_t'] => 'int'],
     [[MY_io_uring_cq_ready => 'io_uring_cq_ready'] => ['__io_uring_t'] => 'uint'],
     [[MY_io_uring_cq_eventfd_enabled => 'io_uring_cq_eventfd_enabled'] => ['__io_uring_t'] => 'bool'],
     [[MY_io_uring_cq_eventfd_toggle => 'io_uring_cq_eventfd_toggle'] => ['__io_uring_t', 'bool'] => 'int'],
