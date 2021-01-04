@@ -188,6 +188,15 @@ use FFI::CheckLib qw//;
     ]);
   };
 
+  package FFI::Liburing::Types::Iovec {
+    FFI::C->struct('__iovec_t' => [
+      iov_base => 'opaque', # void *, pointer to data to be read or written to
+      iov_len => 'size_t', # how large the buffer is
+    ]);
+
+    # TODO make a class that autoconverts to here easily
+  }
+
 #  package FFI::Liburing::Types::IOUringProbe {
 #    FFI::C->struct('__io_uring_probe_t' => [
 #      last_op => 'uint8', # Last one we know we support
@@ -205,8 +214,13 @@ use FFI::CheckLib qw//;
 #    }
 #  };
 
-  $ffi->type('opaque' => '__io_uring_t');
+  # We probably won't ever need to know the insides of these two
+  $ffi->type('opaque' => '__io_uring_t'); 
   $ffi->type('opaque' => '__io_uring_probe_t');
+  
+  $ffi->type('opaque' => '__io_uring_params_t'); # TODO make this useful
+
+  # TODO spec these out
   $ffi->type('opaque' => '__io_uring_cqe_pp_t');
   $ffi->type('opaque' => '__io_uring_cqe_p_t');
   $ffi->type('opaque' => '__io_uring_sqe_p_t');
@@ -216,18 +230,26 @@ use FFI::CheckLib qw//;
   $ffi->type('opaque' => '__io_uring_userdata_p_t');
   $ffi->type('opaque' => '__io_uring_addr_p_t'); # const void *addr for io_uring_prep_rw
   $ffi->type('opaque' => '__io_uring_buffer_p_t'); # used for reading/writing data into/from the user process, void* since the kernel won't know or care about types.
+  $ffi->type('opaque' => '__sigset_t');
 
-  #$ffi->type('struct mode_t' => 'mode_t');
   $ffi->type('opaque' => '__open_how_p_t');
   $ffi->type('opaque' => '__epoll_event_t');
-
-  $ffi->type('opaque' => '__iovec_t');
 
   $ffi->bundle;
  
   my $api_list = [
     [io_uring_get_probe => ['__io_uring_t'] => '__io_uring_probe_t'],
     [io_uring_get_probe_ring => [] => '__io_uring_probe_t'],
+    [io_uring_free_probe => ['__io_uring_probe_t'] => 'void'],
+    [io_uring_queue_init_params => ['uint', '__io_uring_t', '__io_uring_params_t'] => 'int'],
+    [io_uring_queue_init => ['uint', '__io_uring_t', 'uint'] => 'int'],
+    [io_uring_queue_mmap => ['int', '__io_uring_params_t', '__io_uring_t'] => 'int'],
+    [io_uring_ring_dontfork => ['__io_uring_t'] => 'int'],
+    [io_uring_queue_exit => ['__io_uring_t'] => 'void'],
+    [io_uring_peek_batch_cqe => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint'] => 'uint'],
+    [io_uring_wait_cqes => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint', '__kernel_timespec_t', '__sigset_t'] => 'int'],
+    [io_uring_wait_cqe_timeout => ['__io_uring_t', '__io_uring_cqe_pp_t', '__kernel_timespec_t'] => 'int'],
+
     [[MY_io_uring_opcode_supported => 'io_uring_opcode_supported'] => ['__io_uring_probe_t', 'int'] => 'int'],
     [[MY_io_uring_wait_cqe_nr => 'MY_io_uring_wait_cqe_nr'] => ['__io_uring_t', '__io_uring_cqe_pp_t', 'uint'] => 'int'],
     [[MY_io_uring_peek_cqe => 'io_uring_peek_cqe'] => ['__io_uring_t', '__io_uring_cqe_pp_t'] => 'int'],
@@ -279,10 +301,11 @@ use FFI::CheckLib qw//;
     [[MY_io_uring_prep_renameat => 'io_uring_prep_renameat'] => ['__io_uring_sqe_p_t', 'int', 'string', 'int', 'string', 'int'] => 'void'],
     [[MY_io_uring_sq_ready => 'io_uring_sq_ready'] => ['__io_uring_t'] => 'uint'],
     [[MY_io_uring_sq_space_left => 'io_uring_sq_space_left'] => ['__io_uring_t'] => 'uint'],
-#    [__io_uring_sqring_wait   => ['__io_uring_t'] => 'int'],
+    [__io_uring_sqring_wait   => ['__io_uring_t'] => 'int'],
     [[MY_io_uring_cq_ready => 'io_uring_cq_ready'] => ['__io_uring_t'] => 'uint'],
     [[MY_io_uring_cq_eventfd_enabled => 'io_uring_cq_eventfd_enabled'] => ['__io_uring_t'] => 'bool'],
     [[MY_io_uring_cq_eventfd_toggle => 'io_uring_cq_eventfd_toggle'] => ['__io_uring_t', 'bool'] => 'int'],
+
   ];
 
   for my $func (@$api_list) {
